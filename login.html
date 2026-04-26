@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log In - Digital Uddan</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <div class="form-wrap">
+    <h1>Welcome back</h1>
+    <p class="sub">Log in to continue shopping.</p>
+    <div class="error" id="errorBox" style="display:none"></div>
+
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input name="email" type="email" required/></div>
+      <div class="field"><label>Password</label><input name="password" type="password" required/></div>
+      <button class="btn" type="submit">Log in</button>
+    </form>
+
+    <div class="divider">or</div>
+    <div id="googleBtn"></div>
+
+    <div class="form-foot">
+      New here? <a href="/signup.html">Create an account</a><br/>
+      Selling on Uddan? <a href="/seller-login.html">Seller login</a>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/google-auth.js"></script>
+  <script>
+    renderHeader({ showSearch: false });
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const errEl = document.getElementById('errorBox');
+      errEl.style.display = 'none';
+      try {
+        const data = await api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: fd.get('email'),
+            password: fd.get('password'),
+            role: 'customer',
+          }),
+        });
+        setSession(data.token, data.user);
+        const next = new URLSearchParams(location.search).get('next') || '/index.html';
+        window.location.href = next;
+      } catch (err) {
+        errEl.textContent = err.message; errEl.style.display = 'block';
+      }
+    });
+    mountGoogleButton('googleBtn', 'customer');
+  </script>
+</body>
+</html>

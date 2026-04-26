@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up - Digital Uddan</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <div class="form-wrap">
+    <h1>Create your account</h1>
+    <p class="sub">Shop fresh produce delivered to your door.</p>
+    <div class="error" id="errorBox" style="display:none"></div>
+
+    <form id="signupForm">
+      <div class="field"><label>Full name</label><input name="name" required/></div>
+      <div class="field"><label>Email</label><input name="email" type="email" required/></div>
+      <div class="field"><label>Password</label><input name="password" type="password" minlength="6" required/></div>
+      <div class="field"><label>Phone (optional)</label><input name="phone"/></div>
+      <button class="btn" type="submit">Sign up</button>
+    </form>
+
+    <div class="divider">or</div>
+    <div id="googleBtn"></div>
+
+    <div class="form-foot">
+      Already have an account? <a href="/login.html">Log in</a><br/>
+      Want to sell? <a href="/seller-register.html">Become a seller</a>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/google-auth.js"></script>
+  <script>
+    renderHeader({ showSearch: false });
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const errEl = document.getElementById('errorBox');
+      errEl.style.display = 'none';
+      try {
+        const data = await api('/auth/signup', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: fd.get('name'),
+            email: fd.get('email'),
+            password: fd.get('password'),
+            phone: fd.get('phone'),
+            role: 'customer',
+          }),
+        });
+        setSession(data.token, data.user);
+        window.location.href = '/index.html';
+      } catch (err) {
+        errEl.textContent = err.message; errEl.style.display = 'block';
+      }
+    });
+    mountGoogleButton('googleBtn', 'customer');
+  </script>
+</body>
+</html>

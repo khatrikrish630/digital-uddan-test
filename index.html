@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digital Uddan - Fresh fruits & vegetables delivered</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <main class="container">
+    <h1 class="page-title">Fresh fruits &amp; vegetables, delivered fast</h1>
+    <div class="categories" id="categories"></div>
+    <div class="grid" id="productGrid"></div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    let allProducts = [];
+    let activeCategory = null;
+
+    function emojiFor(cat) {
+      const m = { Fruits: '🍎', Vegetables: '🥦', Leafy: '🥬', Exotic: '🥑', Herbs: '🌿' };
+      return m[cat] || '🛒';
+    }
+
+    function render() {
+      const grid = document.getElementById('productGrid');
+      const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+      let items = allProducts;
+      if (activeCategory) items = items.filter(p => p.category === activeCategory);
+      if (q) items = items.filter(p => p.name.toLowerCase().includes(q));
+      if (!items.length) {
+        grid.innerHTML = `<div class="empty"><div class="icon">🥕</div><div>No products yet. Sellers, list your produce!</div></div>`;
+        return;
+      }
+      grid.innerHTML = items.map(p => `
+        <div class="card">
+          <div class="img-box">${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt=""/>` : emojiFor(p.category)}</div>
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="seller">by ${escapeHtml(p.shop_name || '')}</div>
+          <div class="price-row">
+            <div>
+              <div class="price">₹${p.price}</div>
+              <div class="unit">per ${escapeHtml(p.unit)}</div>
+            </div>
+            <button onclick='addToCart(${JSON.stringify(p)})' ${p.stock <= 0 ? 'disabled' : ''}>
+              ${p.stock <= 0 ? 'Out' : '+ Add'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCategories(cats) {
+      const el = document.getElementById('categories');
+      el.innerHTML = `<div class="cat-pill ${!activeCategory ? 'active' : ''}" data-cat="">All</div>` +
+        cats.map(c => `<div class="cat-pill ${activeCategory===c?'active':''}" data-cat="${escapeHtml(c)}">${emojiFor(c)} ${escapeHtml(c)}</div>`).join('');
+      el.querySelectorAll('.cat-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          activeCategory = pill.dataset.cat || null;
+          renderCategories(cats);
+          render();
+        });
+      });
+    }
+
+    async function load() {
+      renderHeader();
+      document.getElementById('searchInput')?.addEventListener('input', render);
+      try {
+        allProducts = await api('/products');
+        const cats = [...new Set(allProducts.map(p => p.category))];
+        renderCategories(cats);
+        render();
+      } catch (e) {
+        document.getElementById('productGrid').innerHTML =
+          `<div class="empty"><div class="icon">⚠️</div>${escapeHtml(e.message)}</div>`;
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

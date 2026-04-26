@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seller Dashboard - Digital Uddan</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <main class="container">
+    <h1 class="page-title">Seller Dashboard</h1>
+
+    <div class="stats" id="statRow"></div>
+
+    <div class="dash-grid" style="margin-top:20px">
+      <div class="panel">
+        <h2>📈 Sales forecast — what's selling fastest</h2>
+        <p style="font-size:13px;color:var(--muted);margin:-8px 0 12px">
+          Items ranked by 7-day growth vs the prior 7 days. Use this to restock the rising ones.
+        </p>
+        <div id="forecastBody"></div>
+      </div>
+      <div class="panel">
+        <h2>➕ Add a product</h2>
+        <div class="error" id="addError" style="display:none"></div>
+        <form id="addForm">
+          <div class="field"><label>Name</label><input name="name" placeholder="e.g. Alphonso Mango" required/></div>
+          <div class="field"><label>Category</label>
+            <select name="category" required>
+              <option value="Fruits">Fruits</option>
+              <option value="Vegetables">Vegetables</option>
+              <option value="Leafy">Leafy Greens</option>
+              <option value="Exotic">Exotic</option>
+              <option value="Herbs">Herbs</option>
+            </select>
+          </div>
+          <div class="field" style="display:flex;gap:8px">
+            <div style="flex:1"><label>Price (₹)</label><input name="price" type="number" step="0.01" min="0" required/></div>
+            <div style="flex:1"><label>Unit</label>
+              <select name="unit">
+                <option>kg</option><option>g</option><option>piece</option><option>dozen</option><option>bunch</option>
+              </select>
+            </div>
+            <div style="flex:1"><label>Stock</label><input name="stock" type="number" min="0" value="10" required/></div>
+          </div>
+          <div class="field"><label>Image URL (optional)</label><input name="image_url" placeholder="https://..."/></div>
+          <div class="field"><label>Description</label><textarea name="description" placeholder="Fresh from farm..."></textarea></div>
+          <button class="btn" type="submit">Add product</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>📦 My products</h2>
+      <div id="productList"></div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    function requireSeller() {
+      const u = getUser();
+      if (!u) { window.location.href = '/seller-login.html'; return false; }
+      if (u.role !== 'seller') { toast('Seller account required'); setTimeout(() => location.href='/index.html', 600); return false; }
+      return true;
+    }
+
+    function trendBadge(t, pct) {
+      const arrow = t === 'rising' ? '↑' : t === 'falling' ? '↓' : '→';
+      return `<span class="badge ${t}">${arrow} ${pct >= 0 ? '+' : ''}${pct}%</span>`;
+    }
+
+    async function loadForecast() {
+      const data = await api('/forecast/seller');
+      const stats = document.getElementById('statRow');
+      const lastWeek = data.summary.total_units_last_7;
+      const prevWeek = data.summary.total_units_prev_7;
+      const delta = prevWeek > 0 ? Math.round(((lastWeek - prevWeek) / prevWeek) * 100) : (lastWeek > 0 ? 100 : 0);
+      const dCls = delta >= 0 ? 'up' : 'down';
+      stats.innerHTML = `
+        <div class="stat"><div class="label">Units sold (7d)</div><div class="value">${lastWeek}</div><div class="delta ${dCls}">${delta>=0?'▲':'▼'} ${Math.abs(delta)}% vs prev 7d</div></div>
+        <div class="stat"><div class="label">Top rising</div><div class="value" style="font-size:16px">${data.summary.rising[0] || '—'}</div><div class="delta">${data.summary.rising.slice(1,3).join(', ') || ''}</div></div>
+        <div class="stat"><div class="label">Slowing down</div><div class="value" style="font-size:16px">${data.summary.falling[0] || '—'}</div><div class="delta">${data.summary.falling.slice(1,3).join(', ') || ''}</div></div>
+        <div class="stat"><div class="label">Low stock alerts</div><div class="value">${data.summary.low_stock.length}</div><div class="delta">${data.summary.low_stock.slice(0,2).map(l=>l.name).join(', ') || 'All good'}</div></div>
+      `;
+
+      const body = document.getElementById('forecastBody');
+      if (!data.products.length) {
+        body.innerHTML = `<div class="empty" style="padding:24px"><div class="icon">📊</div>No products yet — add some below to start tracking sales.</div>`;
+        return;
+      }
+      body.innerHTML = `
+        <table>
+          <thead><tr><th>Product</th><th>Last 7d</th><th>Trend</th><th>Forecast (next 7d)</th><th>Stock</th></tr></thead>
+          <tbody>
+            ${data.products.map(p => `
+              <tr>
+                <td><strong>${escapeHtml(p.name)}</strong><br/><span style="font-size:12px;color:var(--muted)">${escapeHtml(p.category)}</span></td>
+                <td>${p.sold_last_7} ${escapeHtml(p.unit)}</td>
+                <td>${trendBadge(p.trend, p.growth_pct)}</td>
+                <td>${p.forecast_next_7} ${escapeHtml(p.unit)}</td>
+                <td>${p.stock} ${p.days_of_stock != null && p.days_of_stock < 7 ? `<span style="color:var(--danger);font-size:11px">⚠ ${p.days_of_stock}d left</span>` : ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function loadProducts() {
+      const items = await api('/products/seller/mine');
+      const list = document.getElementById('productList');
+      if (!items.length) {
+        list.innerHTML = `<div class="empty" style="padding:24px">No products listed yet.</div>`;
+        return;
+      }
+      list.innerHTML = `
+        <table>
+          <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
+          <tbody>
+            ${items.map(p => `
+              <tr>
+                <td>${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.category)}</td>
+                <td>₹${p.price} / ${escapeHtml(p.unit)}</td>
+                <td><input type="number" min="0" value="${p.stock}" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:4px" onchange="updateStock(${p.id}, this.value)"/></td>
+                <td><button onclick="del(${p.id})" style="border:1px solid var(--danger);color:var(--danger);background:white;padding:4px 10px;border-radius:6px;cursor:pointer">Delete</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function updateStock(id, stock) {
+      try { await api('/products/' + id, { method: 'PUT', body: JSON.stringify({ stock: Number(stock) }) }); toast('Stock updated'); }
+      catch (e) { toast('Failed: ' + e.message); }
+    }
+    async function del(id) {
+      if (!confirm('Delete this product?')) return;
+      try { await api('/products/' + id, { method: 'DELETE' }); await loadProducts(); await loadForecast(); }
+      catch (e) { toast('Failed: ' + e.message); }
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const errEl = document.getElementById('addError');
+      errEl.style.display = 'none';
+      try {
+        await api('/products', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: fd.get('name'),
+            category: fd.get('category'),
+            price: fd.get('price'),
+            unit: fd.get('unit'),
+            stock: fd.get('stock'),
+            image_url: fd.get('image_url'),
+            description: fd.get('description'),
+          }),
+        });
+        e.target.reset();
+        toast('Product added');
+        await loadProducts(); await loadForecast();
+      } catch (err) {
+        errEl.textContent = err.message; errEl.style.display = 'block';
+      }
+    });
+
+    async function init() {
+      if (!requireSeller()) return;
+      renderHeader({ showSearch: false });
+      try {
+        await Promise.all([loadForecast(), loadProducts()]);
+      } catch (e) {
+        if (e.message.includes('token') || e.message.includes('Forbidden')) {
+          clearSession(); window.location.href = '/seller-login.html';
+        } else toast(e.message);
+      }
+    }
+    init();
+  </script>
+</body>
+</html>

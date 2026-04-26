@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Become a Seller - Digital Uddan</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <header class="header" id="header"></header>
+  <div class="form-wrap wide">
+    <h1>Sell on Digital Uddan</h1>
+    <p class="sub">List your fresh produce and reach customers in your area.</p>
+    <div class="error" id="errorBox" style="display:none"></div>
+
+    <form id="sellerForm">
+      <div class="field"><label>Your name</label><input name="name" required/></div>
+      <div class="field"><label>Shop / Farm name</label><input name="shop_name" required/></div>
+      <div class="field"><label>Email</label><input name="email" type="email" required/></div>
+      <div class="field"><label>Password</label><input name="password" type="password" minlength="6" required/></div>
+      <div class="field"><label>Phone</label><input name="phone" required/></div>
+      <div class="field"><label>Pickup address</label><textarea name="address" required></textarea></div>
+      <button class="btn" type="submit">Create seller account</button>
+    </form>
+
+    <div class="divider">or sign up with</div>
+    <div id="googleBtn"></div>
+    <p class="sub" style="text-align:center;margin-top:8px;font-size:12px">If you sign up via Google, you can add your shop details from the dashboard.</p>
+
+    <div class="form-foot">
+      Already a seller? <a href="/seller-login.html">Seller login</a><br/>
+      <a href="/index.html">Back to shop</a>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/google-auth.js"></script>
+  <script>
+    renderHeader({ showSearch: false });
+    document.getElementById('sellerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const errEl = document.getElementById('errorBox');
+      errEl.style.display = 'none';
+      try {
+        const data = await api('/auth/signup', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: fd.get('name'),
+            shop_name: fd.get('shop_name'),
+            email: fd.get('email'),
+            password: fd.get('password'),
+            phone: fd.get('phone'),
+            address: fd.get('address'),
+            role: 'seller',
+          }),
+        });
+        setSession(data.token, data.user);
+        window.location.href = '/seller-dashboard.html';
+      } catch (err) {
+        errEl.textContent = err.message; errEl.style.display = 'block';
+      }
+    });
+    mountGoogleButton('googleBtn', 'seller');
+  </script>
+</body>
+</html>
